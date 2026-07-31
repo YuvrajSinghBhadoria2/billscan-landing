@@ -36,7 +36,8 @@ module.exports = async (req, res) => {
         console.log(`New signup: ${email}`);
         res.json({ success: true, message: "You're on the list!" });
     } catch (error) {
-        console.error('Error:', error);
-        res.json({ success: false, error: 'Server error' });
+        console.error('Error:', error.message);
+        console.error('Stack:', error.stack);
+        res.json({ success: false, error: error.message });
     }
 };
