@@ -28,11 +28,11 @@
             cursor: none;
         }
 
-        /* Custom cursor */
-        .cursor { position: fixed; top: 0; left: 0; width: 12px; height: 12px; background: var(--brand-orange); border-radius: 50%; pointer-events: none; z-index: 10000; mix-blend-mode: difference; transition: transform 0.15s ease-out; }
-        .cursor-follower { position: fixed; top: 0; left: 0; width: 40px; height: 40px; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; pointer-events: none; z-index: 9999; transition: transform 0.3s ease-out, width 0.3s, height 0.3s; }
-        .cursor.hovering { transform: scale(2); }
-        .cursor-follower.hovering { width: 60px; height: 60px; border-color: var(--brand-orange); }
+        /* Custom cursor - Originkit style */
+        .cursor-container { position: fixed; top: 0; left: 0; width: 200px; height: 200px; overflow: hidden; pointer-events: none; z-index: 10000; }
+        .cursor-arrow { position: absolute; top: 0; left: 0; pointer-events: none; will-change: transform, opacity; transform-origin: 0% 0%; }
+        .cursor-label { position: absolute; top: 0; left: 0; pointer-events: none; will-change: transform, opacity; transform-origin: 0% 50%; background: var(--brand-orange); border-radius: 999px; padding: 4px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08); user-select: none; white-space: nowrap; }
+        .cursor-label-text { color: #000; font-size: 12px; line-height: 1.1; font-weight: 600; font-family: system-ui, -apple-system, sans-serif; letter-spacing: 0.1px; }
 
         /* Noise overlay */
         body::after {
@@ -834,7 +834,7 @@
 
         @media (max-width: 900px) {
             body { cursor: auto; }
-            .cursor, .cursor-follower { display: none; }
+            .cursor-container { display: none; }
             .nav { padding: 0 24px; }
             .nav-right a { display: none; }
             .hero { padding: 100px 24px 80px; }
@@ -862,8 +862,16 @@
 </head>
 <body>
 
-<div class="cursor" id="cursor"></div>
-<div class="cursor-follower" id="cursor-follower"></div>
+<div class="cursor-container" id="cursor-container">
+    <div class="cursor-label" id="cursor-label">
+        <span class="cursor-label-text">BillScan</span>
+    </div>
+    <div class="cursor-arrow" id="cursor-arrow">
+        <svg width="20" height="20" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 3 L23 14 L14 16 L11 24 Z" fill="#E34A32" stroke="rgba(0,0,0,0.18)" stroke-width="0.6" stroke-linejoin="round"/>
+        </svg>
+    </div>
+</div>
 
 <div class="grid-lines">
     <div></div><div></div><div></div><div></div>
@@ -1081,38 +1089,80 @@
         smoothWheel: true
     });
 
-    // Custom cursor
-    const cursor = document.getElementById('cursor');
-    const follower = document.getElementById('cursor-follower');
-    let mouseX = 0, mouseY = 0;
-    let followerX = 0, followerY = 0;
-
+    // Custom cursor - Originkit UserCursor style
+    const cursorContainer = document.getElementById('cursor-container');
+    const cursorArrow = document.getElementById('cursor-arrow');
+    const cursorLabel = document.getElementById('cursor-label');
+    
+    let mouseX = -9999, mouseY = -9999;
+    let arrowX = -9999, arrowY = -9999;
+    let labelX = -9999, labelY = -9999;
+    let labelRotation = 0;
+    let lastSample = null;
+    let hovering = false;
+    
+    // Spring configs
+    const arrowSpring = { stiffness: 380, damping: 32, mass: 0.6 };
+    const labelSpring = { stiffness: 220, damping: 26, mass: 0.7 };
+    
+    // Helper: spring interpolation
+    function springLerp(current, target, config) {
+        const dt = 1 / 60;
+        const force = (target - current) * config.stiffness;
+        const damping = -config.damping * (current - (current || 0));
+        return current + (force + damping) * dt * config.mass;
+    }
+    
     document.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
-        cursor.style.transform = `translate(${mouseX - 6}px, ${mouseY - 6}px)`;
+        
+        if (!hovering) {
+            hovering = true;
+            cursorArrow.style.opacity = '1';
+            cursorLabel.style.opacity = '1';
+        }
+        
+        // Velocity for label tilt
+        const now = performance.now();
+        let vx = 0;
+        if (lastSample) {
+            const dt = Math.max(1, now - lastSample.t);
+            vx = ((mouseX - lastSample.x) / dt) * 1000;
+        }
+        lastSample = { x: mouseX, y: mouseY, t: now };
+        
+        // Label tilt
+        const speed = Math.abs(vx);
+        const norm = Math.min(1, speed / 1500);
+        const sign = vx === 0 ? 0 : vx > 0 ? 1 : -1;
+        labelRotation = sign * norm * 25;
     });
-
+    
+    document.addEventListener('mouseleave', () => {
+        hovering = false;
+        cursorArrow.style.opacity = '0';
+        cursorLabel.style.opacity = '0';
+        lastSample = null;
+        labelRotation = 0;
+    });
+    
     function animateCursor() {
-        followerX += (mouseX - followerX) * 0.1;
-        followerY += (mouseY - followerY) * 0.1;
-        follower.style.transform = `translate(${followerX - 20}px, ${followerY - 20}px)`;
+        // Spring physics for arrow
+        arrowX += (mouseX - arrowX) * 0.25;
+        arrowY += (mouseY - arrowY) * 0.25;
+        
+        // Spring physics for label (lags behind)
+        labelX += (mouseX - labelX) * 0.15;
+        labelY += (mouseY - labelY) * 0.15;
+        
+        // Apply transforms
+        cursorArrow.style.transform = `translate(${arrowX}px, ${arrowY}px)`;
+        cursorLabel.style.transform = `translate(${labelX + 20}px, ${labelY + 12}px) rotate(${labelRotation}deg)`;
+        
         requestAnimationFrame(animateCursor);
     }
     animateCursor();
-
-    // Cursor hover effects
-    const hoverElements = document.querySelectorAll('a, button, .feature-card, .receipt, .coverflow-card');
-    hoverElements.forEach(el => {
-        el.addEventListener('mouseenter', () => {
-            cursor.classList.add('hovering');
-            follower.classList.add('hovering');
-        });
-        el.addEventListener('mouseleave', () => {
-            cursor.classList.remove('hovering');
-            follower.classList.remove('hovering');
-        });
-    });
 
     // Scroll reveal animations
     const observerOptions = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };
