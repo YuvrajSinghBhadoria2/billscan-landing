@@ -1159,7 +1159,7 @@
         btn.addEventListener('click', () => lenis.scrollTo('.cta-section', { offset: -80 }));
     });
 
-    // Signup form
+    // Signup form - direct to Formspree
     document.getElementById('signup-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         const email = this.querySelector('input').value;
@@ -1169,14 +1169,13 @@
         btn.disabled = true;
         
         try {
-            const res = await fetch('/api/signup', {
+            const res = await fetch('https://formspree.io/f/xzdnqoqn', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-            const data = await res.json();
             
-            if (data.success) {
+            if (res.ok) {
                 const msg = document.getElementById('success-msg');
                 msg.innerHTML = '<strong>You\'re on the list!</strong> We\'ll notify you when BillScan launches. Get ready to take control of your subscriptions.';
                 msg.className = 'success-msg';
@@ -1186,14 +1185,7 @@
             } else {
                 btn.textContent = 'Join Waitlist';
                 btn.disabled = false;
-                const msg = document.getElementById('success-msg');
-                if (data.error === 'Email already exists') {
-                    msg.innerHTML = '<strong>Already signed up!</strong> This email is already on our waitlist. Stay tuned for updates.';
-                    msg.className = 'success-msg error';
-                    msg.style.display = 'block';
-                } else {
-                    alert('Error: ' + data.error);
-                }
+                alert('Error: Please try again');
             }
         } catch (err) {
             btn.textContent = 'Join Waitlist';

@@ -1,5 +1,3 @@
-const { put, list } = require('@vercel/blob');
-
 module.exports = async (req, res) => {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,26 +17,22 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Email required' });
     }
 
-    try {
-        // Check for duplicates
-        const { blobs } = await list({ prefix: 'emails/', access: 'private' });
-        const existingEmails = blobs.map(blob => blob.pathname.replace('emails/', ''));
-        
-        if (existingEmails.includes(email.toLowerCase())) {
-            return res.json({ success: false, error: 'Email already exists' });
-        }
+    const FORMSPREE_URL = 'https://formspree.io/f/xzdnqoqn';
 
-        // Add new email
-        await put(`emails/${email.toLowerCase()}`, JSON.stringify({ email, date: new Date().toISOString() }), {
-            contentType: 'application/json',
-            access: 'private',
+    try {
+        const response = await fetch(FORMSPREE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
         });
 
-        console.log(`New signup: ${email}`);
-        res.json({ success: true, message: "You're on the list!" });
+        if (response.ok) {
+            res.json({ success: true, message: "You're on the list!" });
+        } else {
+            res.json({ success: false, error: 'Failed to save' });
+        }
     } catch (error) {
-        console.error('Error:', error.message);
-        console.error('Stack:', error.stack);
-        res.json({ success: false, error: error.message });
+        console.error('Error:', error);
+        res.json({ success: false, error: 'Server error' });
     }
 };
