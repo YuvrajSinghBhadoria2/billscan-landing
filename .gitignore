@@ -2,3 +2,4 @@
 node_modules/
 signups.csv
 server.log
+.env*
