@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/YuvrajSinghBhadoria2/billscan-landing#readme",
   "dependencies": {
+    "@vercel/blob": "^2.6.1",
     "express": "^5.2.1"
   }
 }
