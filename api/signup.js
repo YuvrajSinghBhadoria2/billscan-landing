@@ -1,13 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
-const CSV_FILE = path.join('/tmp', 'signups.csv');
-
-// Initialize CSV if it doesn't exist
-if (!fs.existsSync(CSV_FILE)) {
-    fs.writeFileSync(CSV_FILE, 'email,date\n');
-}
-
 module.exports = async (req, res) => {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,27 +17,36 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Email required' });
     }
 
-    // Read existing emails
-    let data = '';
+    const GOOGLE_SHEETS_URL = process.env.GOOGLE_SHEETS_URL || 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+
     try {
-        data = fs.readFileSync(CSV_FILE, 'utf8');
-    } catch (err) {
-        fs.writeFileSync(CSV_FILE, 'email,date\n');
-        data = 'email,date\n';
+        // First, GET existing emails to check for duplicates
+        const getResponse = await fetch(GOOGLE_SHEETS_URL);
+        const getResult = await getResponse.json();
+        
+        if (getResult.signups) {
+            const existingEmails = getResult.signups.map(s => s.email.toLowerCase());
+            if (existingEmails.includes(email.toLowerCase())) {
+                return res.json({ success: false, error: 'Email already exists' });
+            }
+        }
+
+        // If not duplicate, POST to add
+        const postResponse = await fetch(GOOGLE_SHEETS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, date: new Date().toISOString() })
+        });
+
+        const postData = await postResponse.json();
+
+        if (postData.success) {
+            res.json({ success: true, message: "You're on the list!" });
+        } else {
+            res.json({ success: false, error: postData.error || 'Failed to save' });
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        res.json({ success: false, error: 'Server error' });
     }
-
-    const lines = data.trim().split('\n').slice(1);
-    const existingEmails = lines.map(line => line.split(',')[0].toLowerCase());
-
-    if (existingEmails.includes(email.toLowerCase())) {
-        return res.json({ success: false, error: 'Email already exists' });
-    }
-
-    const date = new Date().toISOString();
-    const row = `${email},${date}\n`;
-
-    fs.appendFileSync(CSV_FILE, row);
-    console.log(`New signup: ${email} at ${date}`);
-
-    res.json({ success: true, message: "You're on the list!" });
 };

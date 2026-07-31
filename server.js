@@ -1,56 +1,68 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const PORT = 3000;
 
+// Google Sheets Webhook URL - Replace with your own
+const GOOGLE_SHEETS_URL = process.env.GOOGLE_SHEETS_URL || 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-const CSV_FILE = path.join(__dirname, 'signups.csv');
-
-// Initialize CSV if it doesn't exist
-if (!fs.existsSync(CSV_FILE)) {
-    fs.writeFileSync(CSV_FILE, 'email,date\n');
-}
-
-// Serve static files
 app.use(express.static(__dirname));
 
-// API endpoint to collect emails
-app.post('/api/signup', (req, res) => {
+// Signup endpoint
+app.post('/api/signup', async (req, res) => {
     const { email } = req.body;
     if (!email) {
         return res.status(400).json({ error: 'Email required' });
     }
 
-    // Check if email already exists
-    const data = fs.readFileSync(CSV_FILE, 'utf8');
-    const lines = data.trim().split('\n').slice(1); // Skip header
-    const existingEmails = lines.map(line => line.split(',')[0].toLowerCase());
-    
-    if (existingEmails.includes(email.toLowerCase())) {
-        return res.json({ success: false, error: 'Email already exists' });
-    }
+    try {
+        // Check for duplicates
+        const getResponse = await fetch(GOOGLE_SHEETS_URL);
+        const getResult = await getResponse.json();
+        
+        if (getResult.signups) {
+            const existingEmails = getResult.signups.map(s => s.email.toLowerCase());
+            if (existingEmails.includes(email.toLowerCase())) {
+                return res.json({ success: false, error: 'Email already exists' });
+            }
+        }
 
-    const date = new Date().toISOString();
-    const row = `${email},${date}\n`;
-    
-    fs.appendFileSync(CSV_FILE, row);
-    console.log(`New signup: ${email} at ${date}`);
-    
-    res.json({ success: true, message: 'You\'re on the list!' });
+        // Add new signup
+        const postResponse = await fetch(GOOGLE_SHEETS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, date: new Date().toISOString() })
+        });
+
+        const postData = await postResponse.json();
+
+        if (postData.success) {
+            console.log(`New signup: ${email}`);
+            res.json({ success: true, message: "You're on the list!" });
+        } else {
+            res.json({ success: false, error: postData.error || 'Failed to save' });
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        res.json({ success: false, error: 'Server error' });
+    }
 });
 
 // Get all signups
-app.get('/api/signups', (req, res) => {
-    const data = fs.readFileSync(CSV_FILE, 'utf8');
-    const lines = data.trim().split('\n').slice(1); // Skip header
-    res.json({ count: lines.length, signups: lines });
+app.get('/api/signups', async (req, res) => {
+    try {
+        const response = await fetch(GOOGLE_SHEETS_URL);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Error:', error);
+        res.json({ count: 0, signups: [] });
+    }
 });
 
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Signups stored in: ${CSV_FILE}`);
 });
