@@ -17,33 +17,19 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Email required' });
     }
 
-    const GOOGLE_SHEETS_URL = process.env.GOOGLE_SHEETS_URL || 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+    const FORMSPREE_URL = 'https://formspree.io/f/xzdnqoqn';
 
     try {
-        // First, GET existing emails to check for duplicates
-        const getResponse = await fetch(GOOGLE_SHEETS_URL);
-        const getResult = await getResponse.json();
-        
-        if (getResult.signups) {
-            const existingEmails = getResult.signups.map(s => s.email.toLowerCase());
-            if (existingEmails.includes(email.toLowerCase())) {
-                return res.json({ success: false, error: 'Email already exists' });
-            }
-        }
-
-        // If not duplicate, POST to add
-        const postResponse = await fetch(GOOGLE_SHEETS_URL, {
+        const response = await fetch(FORMSPREE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, date: new Date().toISOString() })
+            body: JSON.stringify({ email })
         });
 
-        const postData = await postResponse.json();
-
-        if (postData.success) {
+        if (response.ok) {
             res.json({ success: true, message: "You're on the list!" });
         } else {
-            res.json({ success: false, error: postData.error || 'Failed to save' });
+            res.json({ success: false, error: 'Failed to save' });
         }
     } catch (error) {
         console.error('Error:', error);
