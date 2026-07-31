@@ -29,10 +29,8 @@
         }
 
         /* Custom cursor - Originkit style */
-        .cursor-container { position: fixed; top: 0; left: 0; width: 200px; height: 200px; overflow: hidden; pointer-events: none; z-index: 10000; }
-        .cursor-arrow { position: absolute; top: 0; left: 0; pointer-events: none; will-change: transform, opacity; transform-origin: 0% 0%; }
-        .cursor-label { position: absolute; top: 0; left: 0; pointer-events: none; will-change: transform, opacity; transform-origin: 0% 50%; background: var(--brand-orange); border-radius: 999px; padding: 4px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08); user-select: none; white-space: nowrap; }
-        .cursor-label-text { color: #000; font-size: 12px; line-height: 1.1; font-weight: 600; font-family: system-ui, -apple-system, sans-serif; letter-spacing: 0.1px; }
+        .cursor-arrow { position: fixed; top: 0; left: 0; pointer-events: none; will-change: transform, opacity; transform-origin: 0% 0%; z-index: 10000; opacity: 0; }
+        input, textarea, [contenteditable] { cursor: none !important; }
 
         /* Noise overlay */
         body::after {
@@ -807,7 +805,10 @@
             font-size: 0.75rem;
             color: var(--text-secondary);
         }
-        .success-msg { display: none; color: var(--brand-orange); margin-top: 16px; }
+        .success-msg { display: none; margin-top: 20px; padding: 16px 24px; background: rgba(227, 74, 50, 0.1); border: 1px solid rgba(227, 74, 50, 0.3); border-radius: 12px; color: var(--text); font-size: 0.9375rem; line-height: 1.5; }
+        .success-msg strong { color: var(--brand-orange); font-weight: 600; }
+        .success-msg.error { background: rgba(255, 107, 107, 0.1); border-color: rgba(255, 107, 107, 0.3); }
+        .success-msg.error strong { color: #ff6b6b; }
 
         /* Footer */
         footer {
@@ -834,7 +835,7 @@
 
         @media (max-width: 900px) {
             body { cursor: auto; }
-            .cursor-container { display: none; }
+            .cursor-arrow { display: none; }
             .nav { padding: 0 24px; }
             .nav-right a { display: none; }
             .hero { padding: 100px 24px 80px; }
@@ -862,15 +863,10 @@
 </head>
 <body>
 
-<div class="cursor-container" id="cursor-container">
-    <div class="cursor-label" id="cursor-label">
-        <span class="cursor-label-text">BillScan</span>
-    </div>
-    <div class="cursor-arrow" id="cursor-arrow">
-        <svg width="20" height="20" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 3 L23 14 L14 16 L11 24 Z" fill="#E34A32" stroke="rgba(0,0,0,0.18)" stroke-width="0.6" stroke-linejoin="round"/>
-        </svg>
-    </div>
+<div class="cursor-arrow" id="cursor-arrow">
+    <svg width="20" height="20" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5 3 L23 14 L14 16 L11 24 Z" fill="#E34A32" stroke="rgba(0,0,0,0.18)" stroke-width="0.6" stroke-linejoin="round"/>
+    </svg>
 </div>
 
 <div class="grid-lines">
@@ -1063,7 +1059,7 @@
             <input type="email" placeholder="you@example.com" required>
             <button type="submit">Join Waitlist</button>
         </form>
-        <div class="success-msg" id="success-msg">You're on the list.</div>
+        <div class="success-msg" id="success-msg"></div>
         <div class="cta-note">No spam · No bank connection · Free to start</div>
     </div>
 </section>
@@ -1090,28 +1086,11 @@
     });
 
     // Custom cursor - Originkit UserCursor style
-    const cursorContainer = document.getElementById('cursor-container');
     const cursorArrow = document.getElementById('cursor-arrow');
-    const cursorLabel = document.getElementById('cursor-label');
     
     let mouseX = -9999, mouseY = -9999;
     let arrowX = -9999, arrowY = -9999;
-    let labelX = -9999, labelY = -9999;
-    let labelRotation = 0;
-    let lastSample = null;
     let hovering = false;
-    
-    // Spring configs
-    const arrowSpring = { stiffness: 380, damping: 32, mass: 0.6 };
-    const labelSpring = { stiffness: 220, damping: 26, mass: 0.7 };
-    
-    // Helper: spring interpolation
-    function springLerp(current, target, config) {
-        const dt = 1 / 60;
-        const force = (target - current) * config.stiffness;
-        const damping = -config.damping * (current - (current || 0));
-        return current + (force + damping) * dt * config.mass;
-    }
     
     document.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
@@ -1120,45 +1099,21 @@
         if (!hovering) {
             hovering = true;
             cursorArrow.style.opacity = '1';
-            cursorLabel.style.opacity = '1';
         }
-        
-        // Velocity for label tilt
-        const now = performance.now();
-        let vx = 0;
-        if (lastSample) {
-            const dt = Math.max(1, now - lastSample.t);
-            vx = ((mouseX - lastSample.x) / dt) * 1000;
-        }
-        lastSample = { x: mouseX, y: mouseY, t: now };
-        
-        // Label tilt
-        const speed = Math.abs(vx);
-        const norm = Math.min(1, speed / 1500);
-        const sign = vx === 0 ? 0 : vx > 0 ? 1 : -1;
-        labelRotation = sign * norm * 25;
     });
     
     document.addEventListener('mouseleave', () => {
         hovering = false;
         cursorArrow.style.opacity = '0';
-        cursorLabel.style.opacity = '0';
-        lastSample = null;
-        labelRotation = 0;
     });
     
     function animateCursor() {
-        // Spring physics for arrow
+        // Spring physics for arrow (snappy)
         arrowX += (mouseX - arrowX) * 0.25;
         arrowY += (mouseY - arrowY) * 0.25;
         
-        // Spring physics for label (lags behind)
-        labelX += (mouseX - labelX) * 0.15;
-        labelY += (mouseY - labelY) * 0.15;
-        
-        // Apply transforms
+        // Apply transform
         cursorArrow.style.transform = `translate(${arrowX}px, ${arrowY}px)`;
-        cursorLabel.style.transform = `translate(${labelX + 20}px, ${labelY + 12}px) rotate(${labelRotation}deg)`;
         
         requestAnimationFrame(animateCursor);
     }
@@ -1221,16 +1176,20 @@
             const data = await res.json();
             
             if (data.success) {
-                document.getElementById('success-msg').style.display = 'block';
+                const msg = document.getElementById('success-msg');
+                msg.innerHTML = '<strong>You\'re on the list!</strong> We\'ll notify you when BillScan launches. Get ready to take control of your subscriptions.';
+                msg.className = 'success-msg';
+                msg.style.display = 'block';
                 this.querySelector('input').value = '';
                 btn.textContent = 'Joined';
             } else {
                 btn.textContent = 'Join Waitlist';
                 btn.disabled = false;
+                const msg = document.getElementById('success-msg');
                 if (data.error === 'Email already exists') {
-                    document.getElementById('success-msg').textContent = 'Email already exists';
-                    document.getElementById('success-msg').style.display = 'block';
-                    document.getElementById('success-msg').style.color = '#ff6b6b';
+                    msg.innerHTML = '<strong>Already signed up!</strong> This email is already on our waitlist. Stay tuned for updates.';
+                    msg.className = 'success-msg error';
+                    msg.style.display = 'block';
                 } else {
                     alert('Error: ' + data.error);
                 }
