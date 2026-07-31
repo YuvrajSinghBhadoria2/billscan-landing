@@ -21,7 +21,7 @@ module.exports = async (req, res) => {
 
     try {
         // Check for duplicates
-        const { blobs } = await list({ prefix: 'emails/' });
+        const { blobs } = await list({ prefix: 'emails/', access: 'private' });
         const existingEmails = blobs.map(blob => blob.pathname.replace('emails/', ''));
         
         if (existingEmails.includes(email.toLowerCase())) {
@@ -31,6 +31,7 @@ module.exports = async (req, res) => {
         // Add new email
         await put(`emails/${email.toLowerCase()}`, JSON.stringify({ email, date: new Date().toISOString() }), {
             contentType: 'application/json',
+            access: 'private',
         });
 
         console.log(`New signup: ${email}`);
